@@ -17,3 +17,4 @@ Thumbs.db
 # Excel temp files
 ~$*.xlsx
 .workbuddy/
+output/
