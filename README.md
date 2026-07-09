@@ -31,10 +31,26 @@ pip install -r requirements.txt
 ```
 
 ### 2. 启动 GUI（推荐）
+
+**方式一：终端命令**（最稳妥）
+在项目目录 `E:\aicu评论-ds-wb\` 下，打开终端（在文件夹地址栏输入 `cmd` 回车），执行：
+
 ```bash
 python aicu_gui.py
 ```
-输入 B站 UID → 选择输出目录（默认 `output/`）→ 勾选数据类型 → 点 "开始爬取"。
+
+**方式二：双击 bat 批处理**（最方便）
+项目根目录已有一个 `启动GUI.bat`，直接双击即可。如果没有，新建一个文本文件，写入以下内容后改名为 `启动GUI.bat`：
+
+```bat
+@echo off
+cd /d "%~dp0"
+python aicu_gui.py
+pause
+```
+
+**方式三：如果不小心用 VS Code 打开了 `.py` 文件**
+右键 `aicu_gui.py` → 选择「打开方式」→ 勾选「Python」并设为默认。或者在 VS Code 中打开后按 `Ctrl+F5` 直接运行。
 
 ### 3. 命令行方式
 ```bash
