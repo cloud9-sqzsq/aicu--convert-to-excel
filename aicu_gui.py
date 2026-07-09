@@ -253,11 +253,16 @@ def crawl_medal(uid, log_func=print):
 # ═══════════════════════════════════════════════════
 # 数据整理
 # ═══════════════════════════════════════════════════
-def flatten_reply(comments, titles):
+def flatten_reply(comments, titles, ip_map=None):
     rows = []
     for idx, c in enumerate(comments, 1):
         rpid = c.get("rpid",""); oid = c.get("dyn",{}).get("oid","")
         ts = c.get("time",0); parent = c.get("parent",{})
+        ip = ""
+        if ip_map and rpid in ip_map:
+            ip = ip_map[rpid]
+        elif not ip_map:
+            ip = "(未登录)"
         rows.append(dict(
             序号=idx, 评论ID=rpid, 评论内容=c.get("message",""),
             评论时间=ts_beijing(ts), 层级="一级评论" if c.get("rank")==1 else "回复",
@@ -265,9 +270,45 @@ def flatten_reply(comments, titles):
             视频ID=oid, 视频链接=oid_to_url(oid),
             视频标题=titles.get(str(oid),"") if oid else "",
             评论跳转链接=comment_jump(oid, rpid),
-            IP属地="(需登录B站API)"  # aicu.cc不提供IP
+            IP属地=ip or "(未登录)"
         ))
     return rows
+
+
+def resolve_ips(reply_raw, sessdata, log_func=print):
+    """通过B站API获取评论IP属地"""
+    if not sessdata or not reply_raw: return {}
+    log_func("\n[IP属地] 正在通过B站API获取...")
+    ip_map = {}
+    cookie = f"SESSDATA={sessdata}"
+    cnt = 0
+    for c in reply_raw:
+        rpid = c.get("rpid","")
+        oid = c.get("dyn",{}).get("oid","")
+        if not rpid or not oid: continue
+        try:
+            resp = requests.get("https://api.bilibili.com/x/v2/reply/detail",
+                                params={"oid": oid, "rpid": rpid, "type": 1},
+                                headers={"User-Agent": UA, "Referer": "https://www.bilibili.com/",
+                                         "Cookie": cookie}, timeout=10)
+            d = resp.json()
+            if d.get("code") == 0:
+                reply = d["data"].get("reply")
+                if reply:
+                    ip_map[rpid] = reply.get("reply_control", {}).get("location", "未知")
+            else:
+                # 可能触发频率限制
+                if d.get("code") == -799:
+                    log_func("  [IP] 请求过于频繁，暂停5秒...")
+                    time.sleep(5)
+                continue
+        except: pass
+        cnt += 1
+        if cnt % 20 == 0:
+            log_func(f"  [IP] 进度: {cnt}/{len(reply_raw)}")
+        time.sleep(0.2)
+    log_func(f"[IP属地] 完成: {len(ip_map)} 条解析")
+    return ip_map
 
 def flatten_videodm(dms, titles):
     rows = []
@@ -341,11 +382,11 @@ class AicuApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("AICU 评论爬虫 - GUI版")
-        self.root.geometry("720x620")
+        self.root.geometry("720x750")
         self.root.resizable(True, True)
         self.running = False
-        # 预设输出目录
         self.out_dir = tk.StringVar(value=os.path.abspath("output"))
+        self.sessdata = tk.StringVar(value="")
         self._build_ui()
 
     def _build_ui(self):
@@ -382,6 +423,22 @@ class AicuApp:
         tk.Button(row2, text="浏览...", command=self._browse_dir,
                   font=("微软雅黑", 9), width=8).pack(side="left", padx=4)
 
+        # B站 登录
+        row_login = tk.Frame(inp_frame); row_login.pack(fill="x", pady=4)
+        tk.Label(row_login, text="B站登录：", font=("微软雅黑", 10), width=10, anchor="e").pack(side="left")
+        self.login_status = tk.Label(row_login, text="未登录", font=("微软雅黑", 9),
+                                     fg="#c0392b", width=6, anchor="w")
+        self.login_status.pack(side="left", padx=4)
+        tk.Button(row_login, text="🔑 打开B站登录页", command=self._open_bili_login,
+                  font=("微软雅黑", 9), width=16, cursor="hand2").pack(side="left", padx=4)
+        tk.Label(row_login, text="登录后粘贴 SESSDATA：", font=("微软雅黑", 9)).pack(side="left", padx=(8,2))
+        self.sess_entry = tk.Entry(row_login, textvariable=self.sessdata, font=("Consolas", 9), width=30, show="*")
+        self.sess_entry.pack(side="left", padx=4)
+        tk.Button(row_login, text="验证", command=self._verify_bili_login,
+                  font=("微软雅黑", 9), width=6).pack(side="left")
+        tk.Button(row_login, text="显示/隐藏", command=self._toggle_sess_show,
+                  font=("微软雅黑", 9), width=8).pack(side="left", padx=2)
+
         # 选项勾选
         row3 = tk.Frame(inp_frame); row3.pack(fill="x", pady=4)
         self.chk_reply = tk.BooleanVar(value=True)
@@ -389,11 +446,13 @@ class AicuApp:
         self.chk_livedm = tk.BooleanVar(value=True)
         self.chk_medal = tk.BooleanVar(value=True)
         self.chk_titles = tk.BooleanVar(value=True)
+        self.chk_ip = tk.BooleanVar(value=False)
         tk.Checkbutton(row3, text="评论", variable=self.chk_reply, font=("微软雅黑", 10)).pack(side="left", padx=6)
         tk.Checkbutton(row3, text="视频弹幕", variable=self.chk_videodm, font=("微软雅黑", 10)).pack(side="left", padx=6)
         tk.Checkbutton(row3, text="直播弹幕", variable=self.chk_livedm, font=("微软雅黑", 10)).pack(side="left", padx=6)
         tk.Checkbutton(row3, text="粉丝牌", variable=self.chk_medal, font=("微软雅黑", 10)).pack(side="left", padx=6)
         tk.Checkbutton(row3, text="查视频标题(较慢)", variable=self.chk_titles, font=("微软雅黑", 10)).pack(side="left", padx=6)
+        tk.Checkbutton(row3, text="查IP属地(需登录)", variable=self.chk_ip, font=("微软雅黑", 10)).pack(side="left", padx=6)
 
         # ── 按钮 ──
         btn_frame = tk.Frame(self.root); btn_frame.pack(**pad)
@@ -424,6 +483,41 @@ class AicuApp:
     def _browse_dir(self):
         d = filedialog.askdirectory(title="选择输出目录", initialdir=self.out_dir.get())
         if d: self.out_dir.set(d)
+
+    def _open_bili_login(self):
+        """打开B站登录页"""
+        import webbrowser
+        webbrowser.open("https://passport.bilibili.com/login")
+        self.log("[登录] 已在浏览器打开B站登录页，登录后按 F12 → Application → Cookies → 复制 SESSDATA 的值")
+
+    def _verify_bili_login(self):
+        """验证 B站 登录态"""
+        s = self.sessdata.get().strip()
+        if not s:
+            messagebox.showwarning("提示", "请先粘贴 SESSDATA cookie")
+            return
+        try:
+            resp = requests.get("https://api.bilibili.com/x/web-interface/nav",
+                                headers={"User-Agent": UA, "Cookie": f"SESSDATA={s}"}, timeout=10)
+            data = resp.json()
+            if data.get("code") == 0 and data["data"].get("isLogin"):
+                uname = data["data"]["uname"]
+                self.login_status.config(text=f"✓ {uname}", fg="#27ae60")
+                self.log(f"[登录] 验证成功！当前账号: {uname}")
+                messagebox.showinfo("登录成功", f"已登录 B站账号: {uname}")
+            else:
+                self.login_status.config(text="未登录", fg="#c0392b")
+                self.log("[登录] 验证失败，SESSDATA 无效或已过期")
+                messagebox.showwarning("登录失败", "SESSDATA 无效或已过期，请重新获取")
+        except Exception as e:
+            self.log(f"[登录] 验证请求失败: {e}")
+
+    def _toggle_sess_show(self):
+        """切换 SESSDATA 显示/隐藏"""
+        if self.sess_entry.cget("show") == "*":
+            self.sess_entry.config(show="")
+        else:
+            self.sess_entry.config(show="*")
 
     def log(self, msg):
         self.log_area.insert("end", msg + "\n")
@@ -489,8 +583,14 @@ class AicuApp:
                 titles = fetch_titles(list(all_oids), out, self.log)
                 self.log("[视频标题] 完成")
 
+            # ── IP属地解析 ──
+            ip_map = {}
+            if reply_raw and self.chk_ip.get() and self.sessdata.get().strip():
+                self.log("\n[IP属地] 检测到已登录，正在解析IP属地...")
+                ip_map = resolve_ips(reply_raw, self.sessdata.get().strip(), self.log)
+
             # ── 整理 ──
-            reply_rows = flatten_reply(reply_raw, titles) if reply_raw else []
+            reply_rows = flatten_reply(reply_raw, titles, ip_map) if reply_raw else []
             videodm_rows = flatten_videodm(videodm_raw, titles) if videodm_raw else []
 
             # ── 生成 Excel ──
