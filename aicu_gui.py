@@ -395,7 +395,7 @@ class AicuApp:
         # ── 标题栏 ──
         title = tk.Label(self.root, text="AICU.cc B站用户数据爬虫",
                          font=("微软雅黑", 16, "bold"), fg="#1A1A2E")
-        title.pack(**pad, pady=(12, 2))
+        title.pack(padx=10, pady=(12, 2))
         subtitle = tk.Label(self.root, text="评论 · 视频弹幕 · 直播弹幕 · 粉丝牌  |  数据来源: aicu.cc",
                             font=("微软雅黑", 9), fg="#888")
         subtitle.pack(**pad)
@@ -403,7 +403,7 @@ class AicuApp:
         # ── 输入区 ──
         inp_frame = tk.LabelFrame(self.root, text="查询设置", font=("微软雅黑", 11, "bold"),
                                   fg="#2B579A", padx=10, pady=8)
-        inp_frame.pack(fill="x", **pad, pady=(10, 4))
+        inp_frame.pack(fill="x", padx=10, pady=(10, 4))
 
         # UID
         row1 = tk.Frame(inp_frame); row1.pack(fill="x", pady=2)
@@ -465,11 +465,11 @@ class AicuApp:
 
         # ── 进度条 ──
         self.progress = ttk.Progressbar(self.root, mode="indeterminate", length=650)
-        self.progress.pack(**pad, pady=(4, 0))
+        self.progress.pack(padx=10, pady=(4, 0))
 
         # ── 日志区 ──
         log_frame = tk.LabelFrame(self.root, text="运行日志", font=("微软雅黑", 10), padx=6, pady=4)
-        log_frame.pack(fill="both", expand=True, **pad, pady=(6, 8))
+        log_frame.pack(fill="both", expand=True, padx=10, pady=(6, 8))
         self.log_area = scrolledtext.ScrolledText(log_frame, font=("Consolas", 9), wrap="word",
                                                   bg="#1a1a2e", fg="#e0e0e0",
                                                   insertbackground="white")
