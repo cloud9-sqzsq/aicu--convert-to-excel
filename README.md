@@ -40,17 +40,20 @@ python aicu_gui.py
 ```
 
 **方式二：双击 bat 批处理**（最方便）
-项目根目录已有一个 `启动GUI.bat`，直接双击即可。如果没有，新建一个文本文件，写入以下内容后改名为 `启动GUI.bat`：
+**方式一：双击启动文件**（最方便）
+- 双击 `启动GUI.vbs` — **无黑框，推荐**
+- 双击 `启动GUI.bat` — 一闪而过，也会启动
 
-```bat
-@echo off
-cd /d "%~dp0"
-call venv\Scripts\python.exe aicu_gui.py
-pause
+**方式三：终端命令**（最稳妥）
+
+在项目目录打开终端（地址栏输入 `cmd` 回车），执行：
+```bash
+python aicu_gui.py
 ```
 
-**方式三：如果不小心用 VS Code 打开了 `.py` 文件**
-右键 `aicu_gui.py` → 选择「打开方式」→ 勾选「Python」并设为默认。或者在 VS Code 中打开后按 `Ctrl+F5` 直接运行。
+**方式四：VS Code 内运行**
+
+打开 `aicu_gui.py` 后按 `Ctrl+F5`。如果双击 `.py` 文件默认打开了 VS Code，右键 →「打开方式」→ 选「Python」。
 
 ### 3. 命令行方式
 ```bash
