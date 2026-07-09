@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python aicu_gui.py
+call venv\Scripts\python.exe aicu_gui.py
 pause
