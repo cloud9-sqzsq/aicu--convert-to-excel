@@ -75,13 +75,32 @@ python aicu_crawler.py 1703916229 --type medal
 | 直播弹幕 | 在直播间发送的弹幕（含主播/房间信息） | `api.aicu.cc/api/v3/search/getlivedm` |
 | 粉丝牌 | 持有的粉丝牌列表（含等级+主播空间链接） | `api.aicu.cc/api/v3/user/getmedal` |
 
-## B站登录（获取IP属地）
+## B站登录（获取IP属地）与安全说明
 
-GUI 界面提供 B站登录功能：
-1. 点击「打开B站登录页」→ 在浏览器中登录 B站
-2. 登录后按 `F12` → `Application` → `Cookies` → 复制 `SESSDATA` 的值
-3. 粘贴到 GUI 的输入框中，点击「验证」
-4. 勾选「查IP属地」后开始爬取，评论表会自动填充 IP属地列
+### 登录方式
+
+**方式一：自动读取浏览器 Cookie**（推荐）
+1. 点击「🔑 登录B站（浏览器）」→ 在浏览器中登录 B站
+2. 登录完成后，点击「📋 自动读取Cookie」→ 程序自动从 Chrome/Edge/Firefox 读取 `SESSDATA`
+3. Cookie 自动保存到 `secrets/sessdata.txt`，下次启动自动加载
+
+**方式二：手动粘贴**
+1. 浏览器登录 B站 后，按 `F12` → `Application` → `Cookies` → 复制 `SESSDATA` 的值
+2. 粘贴到输入框，点击「验证」
+3. 验证通过后自动保存到 `secrets/sessdata.txt`
+
+**方式三：手动管理**
+- 点击「🔒 管理密钥」→ 直接打开 `secrets/` 文件夹，可手动编辑或删除 `sessdata.txt`
+
+### 安全说明
+
+⚠ **Cookie 安全须知**：
+- `SESSDATA` 相当于你的 B站登录凭证，**拥有它可以操作你的账号**
+- 该 Cookie **仅保存在你本机的 `secrets/sessdata.txt` 文件中**
+- `secrets/` 文件夹已在 `.gitignore` 中排除，**不会被上传到 GitHub**
+- 本软件不会将你的 Cookie 发送给除 B站官方 API 以外的任何第三方
+- 如果不放心，点击「🔒 管理密钥」可随时删除已保存的凭据
+- Cookie 有过期时间（通常几个月），过期后需重新登录
 
 ## 数据来源说明
 
@@ -96,7 +115,8 @@ GUI 界面提供 B站登录功能：
 - Python 3.10+
 - `requests` — HTTP 请求
 - `openpyxl` — Excel 读写
-- `curl_cffi`（可选）— 绕过 Cloudflare 封锁
+- `browser-cookie3`（可选）— 自动读取浏览器 B站 Cookie，免手动粘贴
+- `pycryptodome`（可选）— 解密 Chrome/Edge Cookie 数据库
 
 ---
 

@@ -17,11 +17,18 @@ API 端点:
 依赖: pip install requests openpyxl curl_cffi
 """
 
-import csv, json, os, sys, time, threading, traceback
+import csv, json, os, sys, time, threading, traceback, webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 from datetime import datetime, timezone, timedelta
 from collections import Counter
+
+# ── 浏览器 Cookie 自动读取 ───────────────────────
+try:
+    import browser_cookie3
+    HAS_BROWSER_COOKIE = True
+except ImportError:
+    HAS_BROWSER_COOKIE = False
 
 import requests
 try:
@@ -382,11 +389,16 @@ class AicuApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("AICU 评论爬虫 - GUI版")
-        self.root.geometry("720x750")
+        self.root.geometry("720x780")
         self.root.resizable(True, True)
         self.running = False
         self.out_dir = tk.StringVar(value=os.path.abspath("output"))
         self.sessdata = tk.StringVar(value="")
+        # 私密文件夹
+        self.secrets_dir = os.path.abspath("secrets")
+        os.makedirs(self.secrets_dir, exist_ok=True)
+        # 启动时自动加载已保存的 SESSDATA
+        self._auto_load_sessdata()
         self._build_ui()
 
     def _build_ui(self):
@@ -423,21 +435,28 @@ class AicuApp:
         tk.Button(row2, text="浏览...", command=self._browse_dir,
                   font=("微软雅黑", 9), width=8).pack(side="left", padx=4)
 
-        # B站 登录
+        # B站 登录（自动读取浏览器 Cookie）
         row_login = tk.Frame(inp_frame); row_login.pack(fill="x", pady=4)
         tk.Label(row_login, text="B站登录：", font=("微软雅黑", 10), width=10, anchor="e").pack(side="left")
         self.login_status = tk.Label(row_login, text="未登录", font=("微软雅黑", 9),
-                                     fg="#c0392b", width=6, anchor="w")
+                                     fg="#c0392b", width=12, anchor="w")
         self.login_status.pack(side="left", padx=4)
-        tk.Button(row_login, text="🔑 打开B站登录页", command=self._open_bili_login,
+        tk.Button(row_login, text="🔑 登录B站（浏览器）", command=self._open_bili_login,
+                  font=("微软雅黑", 9), width=20, cursor="hand2").pack(side="left", padx=4)
+        tk.Button(row_login, text="📋 自动读取Cookie", command=self._auto_read_browser,
                   font=("微软雅黑", 9), width=16, cursor="hand2").pack(side="left", padx=4)
-        tk.Label(row_login, text="登录后粘贴 SESSDATA：", font=("微软雅黑", 9)).pack(side="left", padx=(8,2))
-        self.sess_entry = tk.Entry(row_login, textvariable=self.sessdata, font=("Consolas", 9), width=30, show="*")
+
+        row_login2 = tk.Frame(inp_frame); row_login2.pack(fill="x", pady=2)
+        tk.Label(row_login2, text="", width=10).pack(side="left")
+        tk.Label(row_login2, text="或手动粘贴 SESSDATA：", font=("微软雅黑", 9)).pack(side="left")
+        self.sess_entry = tk.Entry(row_login2, textvariable=self.sessdata, font=("Consolas", 9), width=30, show="*")
         self.sess_entry.pack(side="left", padx=4)
-        tk.Button(row_login, text="验证", command=self._verify_bili_login,
+        tk.Button(row_login2, text="验证", command=self._verify_bili_login,
                   font=("微软雅黑", 9), width=6).pack(side="left")
-        tk.Button(row_login, text="显示/隐藏", command=self._toggle_sess_show,
-                  font=("微软雅黑", 9), width=8).pack(side="left", padx=2)
+        tk.Button(row_login2, text="显示", command=self._toggle_sess_show,
+                  font=("微软雅黑", 9), width=6).pack(side="left", padx=2)
+        tk.Button(row_login2, text="🔒 管理密钥", command=lambda: os.startfile(self.secrets_dir),
+                  font=("微软雅黑", 9), width=10, cursor="hand2").pack(side="left", padx=(10,2))
 
         # 选项勾选
         row3 = tk.Frame(inp_frame); row3.pack(fill="x", pady=4)
@@ -480,21 +499,109 @@ class AicuApp:
                         font=("微软雅黑", 8), fg="#aaa")
         info.pack(side="bottom", pady=(0, 6))
 
+    def _auto_load_sessdata(self):
+        """启动时从私密文件夹自动加载 SESSDATA"""
+        p = os.path.join(self.secrets_dir, "sessdata.txt")
+        if os.path.exists(p):
+            with open(p, encoding='utf-8') as f:
+                s = f.read().strip()
+            if s:
+                self.sessdata.set(s)
+                # 异步验证
+                threading.Thread(target=self._verify_loaded_sessdata, args=(s,), daemon=True).start()
+
+    def _verify_loaded_sessdata(self, s):
+        """启动时静默验证已保存的 SESSDATA"""
+        try:
+            resp = requests.get("https://api.bilibili.com/x/web-interface/nav",
+                                headers={"User-Agent": UA, "Cookie": f"SESSDATA={s}"}, timeout=10)
+            data = resp.json()
+            if data.get("code") == 0 and data["data"].get("isLogin"):
+                uname = data["data"]["uname"]
+                self.root.after(0, lambda: self.login_status.config(text=f"✓ {uname}", fg="#27ae60"))
+        except: pass
+
+    def _save_sessdata(self, s):
+        """保存 SESSDATA 到私密文件夹"""
+        with open(os.path.join(self.secrets_dir, "sessdata.txt"), 'w', encoding='utf-8') as f:
+            f.write(s)
+
+    def _delete_sessdata(self):
+        """删除已保存的 SESSDATA"""
+        p = os.path.join(self.secrets_dir, "sessdata.txt")
+        if os.path.exists(p):
+            os.remove(p)
+        self.sessdata.set("")
+        self.login_status.config(text="未登录", fg="#c0392b")
+
     def _browse_dir(self):
         d = filedialog.askdirectory(title="选择输出目录", initialdir=self.out_dir.get())
         if d: self.out_dir.set(d)
 
     def _open_bili_login(self):
         """打开B站登录页"""
-        import webbrowser
         webbrowser.open("https://passport.bilibili.com/login")
-        self.log("[登录] 已在浏览器打开B站登录页，登录后按 F12 → Application → Cookies → 复制 SESSDATA 的值")
+        self.log("[登录] 已在浏览器打开B站登录页")
+        self.log("[登录] 登录完成后，点击「📋 自动读取Cookie」按钮")
+
+    def _auto_read_browser(self):
+        """自动从浏览器读取 B站 SESSDATA Cookie"""
+        if not HAS_BROWSER_COOKIE:
+            self.log("[登录] browser_cookie3 未安装，请手动粘贴 SESSDATA")
+            messagebox.showinfo("提示", "自动读取需要 browser_cookie3 库\n安装命令: pip install browser-cookie3")
+            return
+
+        self.log("[登录] 正在读取浏览器 Cookie...")
+        browsers = []
+        # 按优先级尝试主流浏览器
+        try:
+            browsers.append(("Chrome", browser_cookie3.chrome))
+        except: pass
+        try:
+            browsers.append(("Edge", browser_cookie3.edge))
+        except: pass
+        try:
+            browsers.append(("Firefox", browser_cookie3.firefox))
+        except: pass
+        try:
+            browsers.append(("Chromium", browser_cookie3.chromium))
+        except: pass
+
+        sessdata_found = None
+        browser_name = ""
+        for name, loader in browsers:
+            try:
+                cj = loader(domain_name="bilibili.com")
+                for cookie in cj:
+                    if cookie.name == "SESSDATA" and cookie.value:
+                        sessdata_found = cookie.value
+                        browser_name = name
+                        break
+                if sessdata_found:
+                    break
+            except Exception as e:
+                self.log(f"  {name} 读取失败: {e}")
+
+        if sessdata_found:
+            self.sessdata.set(sessdata_found)
+            self._save_sessdata(sessdata_found)
+            self.log(f"[登录] 从 {browser_name} 成功读取 Cookie，已保存到本地")
+            self._verify_bili_login()
+        else:
+            self.log("[登录] 未能自动读取，请确保浏览器已登录B站后重试")
+            self.log("[登录] 或手动粘贴 SESSDATA（F12→Application→Cookies→SESSDATA）")
+            messagebox.showwarning("读取失败",
+                "未能从浏览器自动读取 B站 Cookie。\n\n"
+                "请确认：\n"
+                "1. 已在浏览器中登录 B站\n"
+                "2. 浏览器为 Chrome / Edge / Firefox\n\n"
+                "如果仍然失败，请手动粘贴 SESSDATA")
 
     def _verify_bili_login(self):
         """验证 B站 登录态"""
         s = self.sessdata.get().strip()
         if not s:
-            messagebox.showwarning("提示", "请先粘贴 SESSDATA cookie")
+            messagebox.showwarning("提示", "请先获取 SESSDATA cookie")
             return
         try:
             resp = requests.get("https://api.bilibili.com/x/web-interface/nav",
@@ -503,10 +610,12 @@ class AicuApp:
             if data.get("code") == 0 and data["data"].get("isLogin"):
                 uname = data["data"]["uname"]
                 self.login_status.config(text=f"✓ {uname}", fg="#27ae60")
+                self._save_sessdata(s)
                 self.log(f"[登录] 验证成功！当前账号: {uname}")
                 messagebox.showinfo("登录成功", f"已登录 B站账号: {uname}")
             else:
                 self.login_status.config(text="未登录", fg="#c0392b")
+                self._delete_sessdata()
                 self.log("[登录] 验证失败，SESSDATA 无效或已过期")
                 messagebox.showwarning("登录失败", "SESSDATA 无效或已过期，请重新获取")
         except Exception as e:

@@ -16,5 +16,8 @@ Thumbs.db
 
 # Excel temp files
 ~$*.xlsx
+
+# 私密数据
+secrets/
 .workbuddy/
 output/
