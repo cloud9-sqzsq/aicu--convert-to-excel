@@ -25,47 +25,9 @@
 
 ## 快速开始
 
-### 1. 安装依赖
-```bash
-pip install -r requirements.txt
-```
+**人类使用：双击 `启动GUI.vbs` 即可打开图形界面。**
 
-### 2. 启动 GUI（推荐）
-
-**方式一：终端命令**（最稳妥）
-在项目目录 `E:\aicu评论-ds-wb\` 下，打开终端（在文件夹地址栏输入 `cmd` 回车），执行：
-
-```bash
-python aicu_gui.py
-```
-
-**方式二：双击 bat 批处理**（最方便）
-**方式一：双击启动文件**（最方便）
-- 双击 `启动GUI.vbs` — **无黑框，推荐**
-- 双击 `启动GUI.bat` — 一闪而过，也会启动
-
-**方式三：终端命令**（最稳妥）
-
-在项目目录打开终端（地址栏输入 `cmd` 回车），执行：
-```bash
-python aicu_gui.py
-```
-
-**方式四：VS Code 内运行**
-
-打开 `aicu_gui.py` 后按 `Ctrl+F5`。如果双击 `.py` 文件默认打开了 VS Code，右键 →「打开方式」→ 选「Python」。
-
-### 3. 命令行方式
-```bash
-# 爬取全部数据
-python aicu_crawler.py 1703916229 --output-dir output/
-
-# 只爬评论
-python aicu_crawler.py 1703916229 --type reply
-
-# 只爬粉丝牌
-python aicu_crawler.py 1703916229 --type medal
-```
+**AI 助手使用：读取本 README 和 `aicu_gui.py` 头部的注释文档，按 UID 爬取并生成 Excel。**
 
 ## Excel 输出
 
